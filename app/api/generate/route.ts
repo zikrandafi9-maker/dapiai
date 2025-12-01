@@ -19,6 +19,23 @@ export async function POST(req: Request) {
       );
     }
 
+    // ================================
+    // ➤ Tambahan: ambil tanggal sekarang
+    // ================================
+    const currentDate = new Date().toLocaleString("id-ID", {
+      dateStyle: "full",
+      timeStyle: "medium",
+      timeZone: "Asia/Jakarta",
+    });
+
+    // Gabungkan tanggal + prompt user
+    const finalPrompt = `Tanggal dan waktu saat ini: ${currentDate}.
+    
+Pengguna bertanya: ${prompt}`;
+    // ================================
+    // ➤ Selesai tambahan
+    // ================================
+
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
       {
@@ -30,14 +47,13 @@ export async function POST(req: Request) {
           contents: [
             {
               role: "user",
-              parts: [{ text: prompt }],
+              parts: [{ text: finalPrompt }],
             },
           ],
         }),
       }
     );
 
-    // Ambil raw text untuk menghindari error JSON.parse
     const raw = await response.text();
     console.log("RAW RESPONSE:", raw);
 
