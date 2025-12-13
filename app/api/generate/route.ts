@@ -4,7 +4,7 @@ export async function POST(req: Request) {
   try {
     const { prompt } = await req.json();
 
-    if (!prompt) {
+    if (!prompt || typeof prompt !== "string") {
       return NextResponse.json(
         { error: "Prompt tidak boleh kosong" },
         { status: 400 }
@@ -14,30 +14,41 @@ export async function POST(req: Request) {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
       return NextResponse.json(
-        { error: "API Key tidak ditemukan di .env" },
+        { error: "GEMINI_API_KEY tidak ditemukan di .env" },
         { status: 500 }
       );
     }
 
-    // ================================
-    // ➤ Tambahan: ambil tanggal sekarang
-    // ================================
-    const currentDate = new Date().toLocaleString("id-ID", {
-      dateStyle: "full",
-      timeStyle: "medium",
+    // Konteks waktu (hanya latar, tidak disebut eksplisit)
+    const currentDate = new Date().toLocaleDateString("id-ID", {
       timeZone: "Asia/Jakarta",
+      dateStyle: "long",
     });
 
-    // Gabungkan tanggal + prompt user
-    const finalPrompt = `Tanggal dan waktu saat ini: ${currentDate}.
-    
-Pengguna bertanya: ${prompt}`;
-    // ================================
-    // ➤ Selesai tambahan
-    // ================================
+    /**
+     * TEMPLATE JAWABAN DETAIL & NATURAL
+     * - Minimal 2–3 kalimat
+     * - Ada konteks & penjelasan
+     * - Tidak ada bahasa meta / sistem
+     */
+    const finalPrompt = `
+Konteks waktu: ${currentDate}
+
+Pertanyaan:
+"${prompt}"
+
+Gaya jawaban:
+- Jawab langsung inti pertanyaan
+- Sertakan penjelasan singkat agar informatif
+- Gunakan minimal 2–3 kalimat yang saling menyambung
+- Bahasa Indonesia alami, rapi, dan profesional
+- Jangan gunakan kalimat meta atau satu kata saja
+
+Berikan jawaban yang lengkap dan enak dibaca.
+`;
 
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
       {
         method: "POST",
         headers: {
@@ -50,28 +61,29 @@ Pengguna bertanya: ${prompt}`;
               parts: [{ text: finalPrompt }],
             },
           ],
+          generationConfig: {
+            temperature: 0.3, // natural tapi tetap stabil
+            maxOutputTokens: 900,
+          },
         }),
       }
     );
 
     const raw = await response.text();
-    console.log("RAW RESPONSE:", raw);
-
     const data = JSON.parse(raw);
 
     if (data.error) {
       return NextResponse.json({ error: data.error.message }, { status: 500 });
     }
 
-    const output =
-      data?.candidates?.[0]?.content?.parts?.[0]?.text ||
-      "Tidak ada jawaban dari Gemini.";
+    const result =
+      data?.candidates?.[0]?.content?.parts?.[0]?.text ?? "Tidak ada jawaban.";
 
-    return NextResponse.json({ result: output });
-  } catch (err) {
-    console.error("API ERROR:", err);
+    return NextResponse.json({ result });
+  } catch (error) {
+    console.error("GEMINI API ERROR:", error);
     return NextResponse.json(
-      { error: "Gagal memproses permintaan" },
+      { error: "Terjadi kesalahan pada server" },
       { status: 500 }
     );
   }
